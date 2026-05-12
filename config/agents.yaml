@@ -1,0 +1,29 @@
+- id: planner
+  name: Research Planner
+  provider: anthropic
+  model: claude-3-5-sonnet-latest
+  instruction: planner.instructions.md
+
+- id: derivation
+  name: Derivation Agent
+  provider: openai
+  model: gpt-4o-mini
+  instruction: derivation.instructions.md
+
+- id: verifier
+  name: Formal Verifier
+  provider: gemini
+  model: gemini-2.0-flash
+  instruction: verifier.instructions.md
+
+- id: critic
+  name: Critical Reviewer
+  provider: anthropic
+  model: claude-3-5-sonnet-latest
+  instruction: critic.instructions.md
+
+- id: auditor
+  name: Audit Publisher
+  provider: openai
+  model: gpt-4o-mini
+  instruction: auditor.instructions.md

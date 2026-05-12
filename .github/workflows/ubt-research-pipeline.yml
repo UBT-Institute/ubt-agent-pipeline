@@ -1,0 +1,104 @@
+name: UBT Research Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: Research task to run through the UBT pipeline
+        required: true
+        type: string
+      workflow_id:
+        description: Workflow identifier from ubt-agent-pipeline/config/workflows.yaml
+        required: false
+        default: ubt_derivation_review
+        type: string
+      target_repo:
+        description: Repository path to analyze after checkout
+        required: false
+        default: .
+        type: string
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: read
+  issues: write
+
+env:
+  ALLOWED_TRIGGER_ACTOR: davidjaros
+
+jobs:
+  run-pipeline:
+    if: >-
+      github.actor == env.ALLOWED_TRIGGER_ACTOR &&
+      (
+        github.event_name == 'workflow_dispatch' ||
+        github.event.label.name == 'research-task'
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pipeline dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run UBT pipeline
+        id: run_pipeline
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          TASK_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.task || github.event.issue.title }}
+          WORKFLOW_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.workflow_id || 'ubt_derivation_review' }}
+          TARGET_REPO_INPUT: ${{ github.event_name == 'workflow_dispatch' && inputs.target_repo || '.' }}
+        run: |
+          set -euo pipefail
+          python runner.py \
+            --task "$TASK_INPUT" \
+            --workflow "$WORKFLOW_INPUT" \
+            --repo "$TARGET_REPO_INPUT" | tee pipeline.log
+          SUMMARY_PATH=$(grep '^summary_path=' pipeline.log | tail -n1 | cut -d= -f2-)
+          RESULTS_PATH=$(grep '^results_path=' pipeline.log | tail -n1 | cut -d= -f2-)
+          echo "summary_path=$SUMMARY_PATH" >> "$GITHUB_OUTPUT"
+          echo "results_path=$RESULTS_PATH" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pipeline artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ubt-research-run
+          path: |
+            ${{ steps.run_pipeline.outputs.summary_path }}
+            ${{ steps.run_pipeline.outputs.results_path }}
+
+      - name: Comment on issue
+        if: github.event_name == 'issues'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const summaryPath = process.env.SUMMARY_PATH;
+            const summary = fs.readFileSync(summaryPath, 'utf8');
+            const body = [
+              'UBT research pipeline finished.',
+              '',
+              'Summary excerpt:',
+              '```markdown',
+              summary.slice(0, 6000),
+              '```'
+            ].join('\n');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body,
+            });
+        env:
+          SUMMARY_PATH: ${{ steps.run_pipeline.outputs.summary_path }}

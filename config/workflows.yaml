@@ -1,0 +1,23 @@
+- id: ubt_derivation_review
+  name: UBT Derivation Review Workflow
+  steps:
+    - id: plan
+      name: Scope the research task
+      agent: planner
+      prompt: Break the task into algebraic subproblems, state assumptions, and identify the repository surfaces that matter.
+    - id: derive
+      name: Produce derivation draft
+      agent: derivation
+      prompt: Draft the derivation or research note with explicit symbolic steps and unresolved gaps.
+    - id: verify
+      name: Check formal consistency
+      agent: verifier
+      prompt: Validate the derivation for symbol consistency, missing definitions, and unsupported inference jumps.
+    - id: critique
+      name: Stress-test the argument
+      agent: critic
+      prompt: Challenge the strongest claims, point out brittle assumptions, and propose the cheapest disconfirming checks.
+    - id: audit
+      name: Prepare human audit packet
+      agent: auditor
+      prompt: Summarize the outcome for the principal researcher and classify the result using the UBT proof-level system.
